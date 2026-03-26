@@ -1,14 +1,13 @@
 const crypto = require('crypto');
 const store = require('./store');
-
-const CHANNEL = process.env.SLACK_CHANNEL_ID;
+const config = require('./config');
 
 function verifySignature(req) {
-  if (!process.env.GITHUB_WEBHOOK_SECRET) return true;
+  if (!config.github.webhookSecret) return true;
   const sig = req.headers['x-hub-signature-256'];
   if (!sig) return false;
   const expected = 'sha256=' + crypto
-    .createHmac('sha256', process.env.GITHUB_WEBHOOK_SECRET)
+    .createHmac('sha256', config.github.webhookSecret)
     .update(req.body)
     .digest('hex');
   return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
@@ -40,15 +39,17 @@ module.exports = async function githubHandler(req, res, client) {
 async function handlePullRequest(payload, client) {
   const { action, pull_request: pr } = payload;
   const prNumber = pr.number;
+  const channel = config.slack.channel;
 
   if (action === 'opened' || action === 'reopened') {
+    const prefix = config.mentionPrefix ? `${config.mentionPrefix} ` : '';
     const result = await client.chat.postMessage({
-      channel: CHANNEL,
-      text: `<!here> ${pr.title} :point_down:\n${pr.html_url}`,
+      channel,
+      text: `${prefix}${pr.title} :point_down:\n${pr.html_url}`,
     });
     store.set(prNumber, {
       slackTs: result.ts,
-      channel: CHANNEL,
+      channel,
       approvals: [],
       hasComments: false,
     });
@@ -61,13 +62,13 @@ async function handlePullRequest(payload, client) {
     store.delete(prNumber);
   }
 
-  // New commits pushed — GitHub auto-dismisses stale reviews, mirror that here
+  // New commits — clear approvals to reflect GitHub's stale review dismissal
   if (action === 'synchronize') {
     const entry = store.get(prNumber);
     if (!entry || entry.approvals.length === 0) return;
     entry.approvals = [];
     store.set(prNumber, entry);
-    await removeReaction(client, entry, 'white_check_mark');
+    await removeReaction(client, entry, config.emoji.approved);
   }
 }
 
@@ -86,8 +87,8 @@ async function handleReview(payload, client) {
       entry.hasComments = false;
       store.set(pr.number, entry);
 
-      await addReaction(client, entry, 'white_check_mark');
-      if (!entry.hasComments) await removeReaction(client, entry, 'rabbit');
+      await addReaction(client, entry, config.emoji.approved);
+      await removeReaction(client, entry, config.emoji.changesRequested);
     }
 
     if (review.state === 'changes_requested') {
@@ -95,14 +96,18 @@ async function handleReview(payload, client) {
       entry.hasComments = true;
       store.set(pr.number, entry);
 
-      await addReaction(client, entry, 'rabbit');
-      if (entry.approvals.length === 0) await removeReaction(client, entry, 'white_check_mark');
+      await addReaction(client, entry, config.emoji.changesRequested);
+      if (entry.approvals.length === 0) {
+        await removeReaction(client, entry, config.emoji.approved);
+      }
     }
   }
 
   if (action === 'dismissed') {
     entry.approvals = entry.approvals.filter(a => a !== reviewer);
     store.set(pr.number, entry);
-    if (entry.approvals.length === 0) await removeReaction(client, entry, 'white_check_mark');
+    if (entry.approvals.length === 0) {
+      await removeReaction(client, entry, config.emoji.approved);
+    }
   }
 }

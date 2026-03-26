@@ -1,8 +1,7 @@
 const { Octokit } = require('@octokit/rest');
+const config = require('./config');
 
-const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-const OWNER = process.env.GITHUB_REPO_OWNER;
-const REPO = process.env.GITHUB_REPO_NAME;
+const octokit = new Octokit({ auth: config.github.token });
 
 module.exports = {
   async handle(event, say) {
@@ -19,8 +18,8 @@ module.exports = {
     } else {
       await say(
         '*Commands:*\n' +
-        '• `open prs` — all open PRs\n' +
-        '• `needs review` — PRs with no approvals\n' +
+        '• `open prs` — all open PRs with their current status\n' +
+        '• `needs review` — PRs with no approvals yet\n' +
         '• `approved` — PRs with at least one approval\n' +
         '• `oldest` — oldest open PR without a review'
       );
@@ -30,12 +29,17 @@ module.exports = {
 
 async function getPRsWithReviews() {
   const { data: prs } = await octokit.pulls.list({
-    owner: OWNER, repo: REPO, state: 'open', per_page: 50,
+    owner: config.github.owner,
+    repo: config.github.repo,
+    state: 'open',
+    per_page: 50,
   });
 
   return Promise.all(prs.map(async (pr) => {
     const { data: reviews } = await octokit.pulls.listReviews({
-      owner: OWNER, repo: REPO, pull_number: pr.number,
+      owner: config.github.owner,
+      repo: config.github.repo,
+      pull_number: pr.number,
     });
 
     // Only count the latest review state per reviewer
