@@ -37,7 +37,7 @@ Both emoji are configurable — swap them for any standard or custom Slack emoji
 
 ### 2. Deploy to Railway
 
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/Wk9Kdn?referralCode=4x67YG&utm_medium=integration&utm_source=template&utm_campaign=generic)
 
 1. Fork this repo
 2. Go to [railway.app](https://railway.app) → **New Project** → **Deploy from GitHub repo**
