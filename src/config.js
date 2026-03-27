@@ -1,4 +1,7 @@
 module.exports = {
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  },
   slack: {
     channel: process.env.SLACK_CHANNEL_ID,
   },
@@ -19,4 +22,16 @@ module.exports = {
   mentionPrefix: process.env.MENTION_PREFIX !== undefined
     ? process.env.MENTION_PREFIX
     : '<!here>',
+  // Comma-separated list of "Name:github_username" pairs, e.g. "Aidan:adlee,John:jsmith"
+  teammates: parseTeammates(process.env.TEAMMATES),
 };
+
+function parseTeammates(raw) {
+  if (!raw) return {};
+  return Object.fromEntries(
+    raw.split(',')
+      .map(entry => entry.trim().split(':').map(s => s.trim()))
+      .filter(([name, username]) => name && username)
+      .map(([name, username]) => [name.toLowerCase(), username])
+  );
+}
