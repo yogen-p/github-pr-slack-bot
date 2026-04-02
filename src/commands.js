@@ -42,7 +42,7 @@ module.exports = {
             : pr.hasChangesRequested
               ? 'changes requested'
               : 'awaiting review';
-          return `PR #${pr.number}: "${pr.title}" by @${pr.user.login} — ${pr.ageDays} days old — ${status} — ${pr.html_url}`;
+          return `PR #${pr.number} (${pr._repo}): "${pr.title}" by @${pr.user.login} — ${pr.ageDays} days old — ${status} — ${pr.html_url}`;
         }).join('\n');
 
     const response = await anthropic.messages.create({
@@ -142,5 +142,5 @@ function prLine(pr) {
     : pr.hasChangesRequested
       ? '🐰'
       : '👀';
-  return `${status} *#${pr.number}* ${pr.title} _(${pr.ageDays}d old)_ — <${pr.html_url}|view>`;
+  return `${status} *#${pr.number}* [${pr._repo}] ${pr.title} _(${pr.ageDays}d old)_ — <${pr.html_url}|view>`;
 }
