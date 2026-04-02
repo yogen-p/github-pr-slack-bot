@@ -42,7 +42,7 @@ module.exports = {
             : pr.hasChangesRequested
               ? 'changes requested'
               : 'awaiting review';
-          return `PR #${pr.number}: "${pr.title}" by @${pr.user.login} — ${pr.ageDays} days old — ${status} — ${pr.html_url}`;
+          return `PR #${pr.number} (${pr._repo}): "${pr.title}" by @${pr.user.login} — ${pr.ageDays} days old — ${status} — ${pr.html_url}`;
         }).join('\n');
 
     const response = await anthropic.messages.create({
@@ -58,7 +58,7 @@ STRICT RULES — follow these without exception:
 5. Do not speculate about code, people, or anything not present in the data.
 
 ${Object.keys(config.teammates).length > 0
-  ? `Teammate name → GitHub username mappings:\n${Object.entries(config.teammates).map(([name, gh]) => `  ${name} = @${gh}`).join('\n')}\n\n`
+  ? `Teammate name → GitHub username mappings:\n${Object.entries(config.teammates).map(([name, { username }]) => `  ${name} = @${username}`).join('\n')}\n\n`
   : ''}Current open pull requests:
 ${prData}
 
@@ -103,17 +103,16 @@ async function fallbackKeywordHandler(text, prs, say) {
 }
 
 async function getPRsWithReviews() {
-  const { data: prs } = await octokit.pulls.list({
-    owner: config.github.owner,
-    repo: config.github.repo,
-    state: 'open',
-    per_page: 50,
-  });
+  const allPRs = await Promise.all(config.github.repos.map(async ({ owner, repo }) => {
+    const { data: prs } = await octokit.pulls.list({ owner, repo, state: 'open', per_page: 50 });
+    return prs.map(pr => ({ ...pr, _owner: owner, _repo: repo }));
+  }));
 
-  return Promise.all(prs.map(async (pr) => {
+  return Promise.all(allPRs.flat().map(async (pr) => {
+    const { owner, repo } = { owner: pr._owner, repo: pr._repo };
     const { data: reviews } = await octokit.pulls.listReviews({
-      owner: config.github.owner,
-      repo: config.github.repo,
+      owner,
+      repo,
       pull_number: pr.number,
     });
 
@@ -143,5 +142,5 @@ function prLine(pr) {
     : pr.hasChangesRequested
       ? '🐰'
       : '👀';
-  return `${status} *#${pr.number}* ${pr.title} _(${pr.ageDays}d old)_ — <${pr.html_url}|view>`;
+  return `${status} *#${pr.number}* [${pr._repo}] ${pr.title} _(${pr.ageDays}d old)_ — <${pr.html_url}|view>`;
 }

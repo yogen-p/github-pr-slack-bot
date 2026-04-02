@@ -6,8 +6,9 @@ module.exports = {
     channel: process.env.SLACK_CHANNEL_ID,
   },
   github: {
-    owner: process.env.GITHUB_REPO_OWNER,
-    repo: process.env.GITHUB_REPO_NAME,
+    // Parsed from GITHUB_REPOS=org/repo1,org/repo2 (preferred) or the legacy
+    // GITHUB_REPO_OWNER + GITHUB_REPO_NAME pair. Each entry is { owner, repo }.
+    repos: parseRepos(process.env.GITHUB_REPOS, process.env.GITHUB_REPO_OWNER, process.env.GITHUB_REPO_NAME),
     webhookSecret: process.env.GITHUB_WEBHOOK_SECRET,
     token: process.env.GITHUB_TOKEN,
   },
@@ -22,9 +23,26 @@ module.exports = {
   mentionPrefix: process.env.MENTION_PREFIX !== undefined
     ? process.env.MENTION_PREFIX
     : '<!here>',
-  // Comma-separated list of "Name:github_username" pairs, e.g. "Aidan:adlee,John:jsmith"
+  // Comma-separated "Name:github_username:slack_user_id" entries.
+  // slack_user_id is optional but enables @-tagging PR authors in thread replies.
+  // Find Slack user IDs in Slack: click profile → More → Copy member ID (starts with U).
+  // Example: TEAMMATES=Aidan:adlee:U012AB3CD,Sarah:schen:U098ZY7WX
   teammates: parseTeammates(process.env.TEAMMATES),
 };
+
+function parseRepos(reposEnv, ownerEnv, repoEnv) {
+  if (reposEnv) {
+    return reposEnv.split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(entry => {
+        const [owner, repo] = entry.split('/');
+        return { owner: owner.trim(), repo: repo.trim() };
+      });
+  }
+  if (ownerEnv && repoEnv) return [{ owner: ownerEnv, repo: repoEnv }];
+  return [];
+}
 
 function parseTeammates(raw) {
   if (!raw) return {};
@@ -32,6 +50,6 @@ function parseTeammates(raw) {
     raw.split(',')
       .map(entry => entry.trim().split(':').map(s => s.trim()))
       .filter(([name, username]) => name && username)
-      .map(([name, username]) => [name.toLowerCase(), username])
+      .map(([name, username, slackId]) => [name.toLowerCase(), { username, slackId: slackId || null }])
   );
 }
