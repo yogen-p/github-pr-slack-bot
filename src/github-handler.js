@@ -82,13 +82,6 @@ async function handlePullRequest(payload, client) {
     });
   }
 
-  if (action === 'closed') {
-    const entry = store.get(key);
-    if (!entry) return;
-    await client.chat.delete({ channel: entry.channel, ts: entry.slackTs });
-    store.delete(key);
-  }
-
   // New commits — clear approvals to reflect GitHub's stale review dismissal
   if (action === 'synchronize') {
     const entry = store.get(key);
