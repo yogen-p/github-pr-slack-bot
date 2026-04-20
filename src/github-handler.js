@@ -35,6 +35,46 @@ function isTeammate(githubLogin) {
   return Object.values(config.teammates).some(t => t.username === githubLogin);
 }
 
+async function deleteThread(client, entry) {
+  const { channel, slackTs } = entry;
+  let cursor;
+  const tsToDelete = [];
+
+  // Collect every message in the thread (parent + replies), paginating if needed.
+  try {
+    do {
+      const res = await client.conversations.replies({
+        channel,
+        ts: slackTs,
+        limit: 200,
+        cursor,
+      });
+      for (const msg of res.messages || []) tsToDelete.push(msg.ts);
+      cursor = res.response_metadata?.next_cursor;
+    } while (cursor);
+  } catch (err) {
+    console.error('Failed to list thread replies:', err.message);
+    // Still try to delete the parent even if listing failed.
+    tsToDelete.push(slackTs);
+  }
+
+  // Delete replies first, parent last — Slack only lets a bot delete its own messages,
+  // so user replies will fail and are skipped silently.
+  const replies = tsToDelete.filter(ts => ts !== slackTs);
+  for (const ts of replies) {
+    try {
+      await client.chat.delete({ channel, ts });
+    } catch (err) {
+      console.error(`Failed to delete thread reply ${ts}:`, err.data?.error || err.message);
+    }
+  }
+  try {
+    await client.chat.delete({ channel, ts: slackTs });
+  } catch (err) {
+    console.error('Failed to delete parent message:', err.data?.error || err.message);
+  }
+}
+
 async function postThreadReply(client, entry, text) {
   try {
     await client.chat.postMessage({
@@ -80,6 +120,14 @@ async function handlePullRequest(payload, client) {
       hasComments: false,
       authorLogin: pr.user.login,
     });
+  }
+
+  if (action === 'closed' && pr.merged) {
+    const entry = store.get(key);
+    if (!entry) return;
+    await deleteThread(client, entry);
+    store.delete(key);
+    return;
   }
 
   // New commits — clear approvals to reflect GitHub's stale review dismissal
