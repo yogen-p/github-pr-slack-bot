@@ -21,10 +21,10 @@ receiver.router.post(
 );
 
 // Respond to @mentions in Slack — replies posted in-thread
-app.event('app_mention', async ({ event, say }) => {
+app.event('app_mention', async ({ event, say, client }) => {
   await commands.handle(event, (msg) => say(
     typeof msg === 'string' ? { text: msg, thread_ts: event.ts } : { ...msg, thread_ts: event.ts }
-  ));
+  ), client);
 });
 
 (async () => {

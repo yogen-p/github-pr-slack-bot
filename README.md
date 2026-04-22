@@ -52,7 +52,7 @@ In your Slack app settings:
 
 1. **Event Subscriptions** → enable, set Request URL to:
    ```
-   https://your-railway-url.railway.app/slack/events
+   https://slack-pr-bot-lopay.up.railway.app/slack/events
    ```
 2. **Subscribe to bot events**: `app_mention`
 3. Save changes and reinstall the app if prompted
@@ -61,7 +61,7 @@ In your Slack app settings:
 
 In your GitHub repo → **Settings → Webhooks → Add webhook**:
 
-- **Payload URL**: `https://your-railway-url.railway.app/github/webhook`
+- **Payload URL**: `https://slack-pr-bot-lopay.up.railway.app/github/webhook`
 - **Content type**: `application/json`
 - **Secret**: the value you set for `GITHUB_WEBHOOK_SECRET`
 - **Events**: select **Pull requests** and **Pull request reviews**

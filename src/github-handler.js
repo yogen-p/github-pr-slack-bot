@@ -36,32 +36,9 @@ function isTeammate(githubLogin) {
 }
 
 async function deleteThread(client, entry) {
-  const { channel, slackTs } = entry;
-  let cursor;
-  const tsToDelete = [];
+  const { channel, slackTs, replyTsList = [] } = entry;
 
-  // Collect every message in the thread (parent + replies), paginating if needed.
-  try {
-    do {
-      const res = await client.conversations.replies({
-        channel,
-        ts: slackTs,
-        limit: 200,
-        cursor,
-      });
-      for (const msg of res.messages || []) tsToDelete.push(msg.ts);
-      cursor = res.response_metadata?.next_cursor;
-    } while (cursor);
-  } catch (err) {
-    console.error('Failed to list thread replies:', err.message);
-    // Still try to delete the parent even if listing failed.
-    tsToDelete.push(slackTs);
-  }
-
-  // Delete replies first, parent last — Slack only lets a bot delete its own messages,
-  // so user replies will fail and are skipped silently.
-  const replies = tsToDelete.filter(ts => ts !== slackTs);
-  for (const ts of replies) {
+  for (const ts of replyTsList) {
     try {
       await client.chat.delete({ channel, ts });
     } catch (err) {
@@ -75,13 +52,16 @@ async function deleteThread(client, entry) {
   }
 }
 
-async function postThreadReply(client, entry, text) {
+async function postThreadReply(client, key, entry, text) {
   try {
-    await client.chat.postMessage({
+    const result = await client.chat.postMessage({
       channel: entry.channel,
       thread_ts: entry.slackTs,
       text,
     });
+    entry.replyTsList = entry.replyTsList || [];
+    entry.replyTsList.push(result.ts);
+    store.set(key, entry);
   } catch (err) {
     console.error('Failed to post thread reply:', err.message);
   }
@@ -119,6 +99,7 @@ async function handlePullRequest(payload, client) {
       approvals: [],
       hasComments: false,
       authorLogin: pr.user.login,
+      replyTsList: [],
     });
   }
 
@@ -160,7 +141,7 @@ async function handleReview(payload, client) {
       await removeReaction(client, entry, config.emoji.changesRequested);
 
       const author = slackMention(entry.authorLogin);
-      await postThreadReply(client, entry, `${author} your PR was approved by *${reviewer}* :white_check_mark:`);
+      await postThreadReply(client, key, entry, `${author} your PR was approved by *${reviewer}* :white_check_mark:`);
     }
 
     if (review.state === 'changes_requested') {
@@ -175,12 +156,12 @@ async function handleReview(payload, client) {
 
       const author = slackMention(entry.authorLogin);
       const suffix = reviewer === 'coderabbitai' ? ' :rabbit:' : '';
-      await postThreadReply(client, entry, `${author} *${reviewer}* requested changes on your PR${suffix}`);
+      await postThreadReply(client, key, entry, `${author} *${reviewer}* requested changes on your PR${suffix}`);
     }
 
     if (review.state === 'commented' && isTeammate(reviewer)) {
       const author = slackMention(entry.authorLogin);
-      await postThreadReply(client, entry, `${author} *${reviewer}* left a comment on your PR`);
+      await postThreadReply(client, key, entry, `${author} *${reviewer}* left a comment on your PR`);
     }
   }
 
