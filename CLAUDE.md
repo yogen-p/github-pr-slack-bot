@@ -79,7 +79,7 @@ Webhook endpoints:
 
 ## Current State
 
-- Bot is live and deployed at `https://lopay-slack-pr-bot.up.railway.app`
+- Bot is live and deployed at `https://slack-pr-bot-lopay.up.railway.app`
 - GitHub webhook configured on `lopay-limited/lopay-merchant-android`
 - Slack app installed in the Lopay workspace
 - PR posting and emoji reactions are working

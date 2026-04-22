@@ -6,9 +6,48 @@ const octokit = new Octokit({ auth: config.github.token });
 
 const MAX_INPUT_LENGTH = 300;
 
+// Matches a Slack message permalink: https://workspace.slack.com/archives/CHANNEL/p1234567890123456
+const SLACK_MSG_URL = /https?:\/\/[\w-]+\.slack\.com\/archives\/([A-Z0-9]+)\/p(\d{10})(\d{6})/;
+
+function parseSlackMessageUrl(text) {
+  const m = text.match(SLACK_MSG_URL);
+  if (!m) return null;
+  return { channel: m[1], ts: `${m[2]}.${m[3]}` };
+}
+
+function isTeammateBySlackId(slackId) {
+  return Object.values(config.teammates).some(t => t.slackId === slackId);
+}
+
 module.exports = {
-  async handle(event, say) {
+  async handle(event, say, client) {
     const raw = event.text.replace(/<@[^>]+>/g, '').trim();
+
+    // Delete-by-link: if the mention contains a Slack message URL, try to delete it.
+    // Slack only lets bot tokens delete messages the bot itself authored — a foreign
+    // message returns `cant_delete_message`, so the "own messages only" rule is enforced
+    // server-side regardless of who asked.
+    const link = parseSlackMessageUrl(raw);
+    if (link) {
+      if (!isTeammateBySlackId(event.user)) {
+        await say('Sorry, only teammates can delete messages.');
+        return;
+      }
+      try {
+        await client.chat.delete({ channel: link.channel, ts: link.ts });
+        await say('Deleted :white_check_mark:');
+      } catch (err) {
+        const code = err.data?.error;
+        if (code === 'cant_delete_message') {
+          await say('I can only delete messages I posted myself.');
+        } else if (code === 'message_not_found') {
+          await say('Message not found — already deleted?');
+        } else {
+          await say(`Failed to delete: ${code || err.message}`);
+        }
+      }
+      return;
+    }
 
     // Reject oversized input — long messages are almost always injection attempts
     if (raw.length > MAX_INPUT_LENGTH) {
