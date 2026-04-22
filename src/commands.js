@@ -35,7 +35,6 @@ module.exports = {
       }
       try {
         await client.chat.delete({ channel: link.channel, ts: link.ts });
-        await say('Deleted :white_check_mark:');
       } catch (err) {
         const code = err.data?.error;
         if (code === 'cant_delete_message') {
